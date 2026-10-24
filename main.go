@@ -4,6 +4,7 @@ package main
 
 import (
 	"encoding/json"
+	"strings"
 	"syscall/js"
 
 	"helm.sh/helm/v3/pkg/chart"
@@ -25,10 +26,6 @@ func renderV3(this js.Value, args []js.Value) interface{} {
 		return map[string]interface{}{"error": "invalid files JSON: " + err.Error()}
 	}
 
-	//Fallbacks in case Chart.yaml does not exist AND the user hasn't provided the metadate
-	chartName := "chart"
-	chartVersion := "0.1.0"
-
 	// Searches the files for a Chart.yaml to extract the metadata
 	var chartYamlContent string
 	var chartYamlExists bool
@@ -40,24 +37,26 @@ func renderV3(this js.Value, args []js.Value) interface{} {
 		chartYamlExists = true
 	}
 
+	var meta chart.Metadata
 	if chartYamlExists {
-		var meta chart.Metadata
-		if err := yaml.Unmarshal([]byte(chartYamlContent), &meta); err == nil {
-			if meta.Name != "" {
-				chartName = meta.Name
-			}
-			if meta.Version != "" {
-				chartVersion = meta.Version
-			}
+		if err := yaml.Unmarshal([]byte(chartYamlContent), &meta); err != nil {
+			return map[string]interface{}{"error": "invalid Chart.yaml: " + err.Error()}
 		}
+	}
+
+	if meta.Name == "" {
+		meta.Name = "chart"
+	}
+	if meta.Version == "" {
+		meta.Version = "0.1.0"
 	}
 
 	//Manual overrides via args
 	if len(args) > 2 && !args[2].IsUndefined() && !args[2].IsNull() && args[2].String() != "" {
-		chartName = args[2].String()
+		meta.Name = args[2].String()
 	}
 	if len(args) > 3 && !args[3].IsUndefined() && !args[3].IsNull() && args[3].String() != "" {
-		chartVersion = args[3].String()
+		meta.Version = args[3].String()
 	}
 
 	releaseName := "release-name"
@@ -76,10 +75,7 @@ func renderV3(this js.Value, args []js.Value) interface{} {
 	}
 
 	c := &chart.Chart{
-		Metadata: &chart.Metadata{
-			Name:    chartName,
-			Version: chartVersion,
-		},
+		Metadata:  &meta,
 		Templates: []*chart.File{},
 		Files:     []*chart.File{},
 	}
@@ -91,8 +87,7 @@ func renderV3(this js.Value, args []js.Value) interface{} {
 		}
 
 		switch {
-		case path == "Chart.yaml" || path == "Chart.yml":
-		case len(path) >= 10 && path[:10] == "templates/":
+		case strings.HasPrefix(path, "templates/"):
 			c.Templates = append(c.Templates, f)
 		default:
 			c.Files = append(c.Files, f)
