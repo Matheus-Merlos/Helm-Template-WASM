@@ -12,7 +12,7 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-func render(this js.Value, args []js.Value) interface{} {
+func renderV3(this js.Value, args []js.Value) interface{} {
 	if len(args) < 2 {
 		return map[string]interface{}{"error": "expected at least 2 arguments: filesJSON, valuesStr"}
 	}
@@ -121,7 +121,7 @@ func render(this js.Value, args []js.Value) interface{} {
 }
 
 func main() {
-	js.Global().Set("helmTemplate", js.FuncOf(render))
+	js.Global().Set("helmV3Template", js.FuncOf(renderV3))
 
 	select {}
 }
