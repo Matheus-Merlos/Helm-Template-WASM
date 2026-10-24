@@ -9,17 +9,56 @@ import (
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
 	"helm.sh/helm/v3/pkg/engine"
+	"sigs.k8s.io/yaml"
 )
 
 func render(this js.Value, args []js.Value) interface{} {
-	if len(args) < 4 {
-		return map[string]interface{}{"error": "expected at least 4 arguments: filesJSON, chartName, chartVersion, valuesStr"}
+	if len(args) < 2 {
+		return map[string]interface{}{"error": "expected at least 2 arguments: filesJSON, valuesStr"}
 	}
 
 	filesJSON := args[0].String()
-	chartName := args[1].String()
-	chartVersion := args[2].String()
 	valuesStr := args[3].String()
+
+	var files map[string]string
+	if err := json.Unmarshal([]byte(filesJSON), &files); err != nil {
+		return map[string]interface{}{"error": "invalid files JSON: " + err.Error()}
+	}
+
+	//Fallbacks in case Chart.yaml does not exist AND the user hasn't provided the metadate
+	chartName := "chart"
+	chartVersion := "0.1.0"
+
+	// Searches the files for a Chart.yaml to extract the metadata
+	var chartYamlContent string
+	var chartYamlExists bool
+	if content, ok := files["Chart.yaml"]; ok {
+		chartYamlContent = content
+		chartYamlExists = true
+	} else if content, ok := files["Chart.yml"]; ok {
+		chartYamlContent = content
+		chartYamlExists = true
+	}
+
+	if chartYamlExists {
+		var meta chart.Metadata
+		if err := yaml.Unmarshal([]byte(chartYamlContent), &meta); err == nil {
+			if meta.Name != "" {
+				chartName = meta.Name
+			}
+			if meta.Version != "" {
+				chartVersion = meta.Version
+			}
+		}
+	}
+
+	//Manual overrides via args
+	if len(args) > 2 && !args[2].IsUndefined() && !args[2].IsNull() && args[2].String() != "" {
+		chartName = args[2].String()
+	}
+	if len(args) > 3 && !args[3].IsUndefined() && !args[3].IsNull() && args[3].String() != "" {
+		chartVersion = args[3].String()
+	}
 
 	releaseName := "release-name"
 	if len(args) > 4 && !args[4].IsUndefined() && !args[4].IsNull() && args[4].String() != "" {
@@ -29,11 +68,6 @@ func render(this js.Value, args []js.Value) interface{} {
 	namespace := "default"
 	if len(args) > 5 && !args[5].IsUndefined() && !args[5].IsNull() && args[5].String() != "" {
 		namespace = args[5].String()
-	}
-
-	var files map[string]string
-	if err := json.Unmarshal([]byte(filesJSON), &files); err != nil {
-		return map[string]interface{}{"error": "invalid files JSON: " + err.Error()}
 	}
 
 	values, err := chartutil.ReadValues([]byte(valuesStr))
