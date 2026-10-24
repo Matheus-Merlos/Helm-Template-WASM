@@ -18,7 +18,7 @@ func renderV3(this js.Value, args []js.Value) interface{} {
 	}
 
 	filesJSON := args[0].String()
-	valuesStr := args[3].String()
+	valuesStr := args[1].String()
 
 	var files map[string]string
 	if err := json.Unmarshal([]byte(filesJSON), &files); err != nil {
