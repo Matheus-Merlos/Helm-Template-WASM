@@ -12,23 +12,31 @@ import (
 )
 
 func render(this js.Value, args []js.Value) interface{} {
-	if len(args) < 3 {
-		return map[string]interface{}{"error": "expected 3 arguments: filesJSON, releaseName, namespace"}
+	if len(args) < 6 {
+		return map[string]interface{}{"error": "expected 6 arguments: filesJSON, chartName, chartVersion, values, releaseName, namespace"}
 	}
 
 	filesJSON := args[0].String()
-	releaseName := args[1].String()
-	namespace := args[2].String()
+	chartName := args[1].String()
+	chartVersion := args[2].String()
+	valuesStr := args[3].String()
+	releaseName := args[4].String()
+	namespace := args[5].String()
 
 	var files map[string]string
 	if err := json.Unmarshal([]byte(filesJSON), &files); err != nil {
 		return map[string]interface{}{"error": "invalid files JSON: " + err.Error()}
 	}
 
+	values, err := chartutil.ReadValues([]byte(valuesStr))
+	if err != nil {
+		return map[string]interface{}{"error": "invalid values format: " + err.Error()}
+	}
+
 	c := &chart.Chart{
 		Metadata: &chart.Metadata{
-			Name:    "chart",
-			Version: "0.1.0",
+			Name:    chartName,
+			Version: chartVersion,
 		},
 		Templates: []*chart.File{},
 		Files:     []*chart.File{},
@@ -47,15 +55,6 @@ func render(this js.Value, args []js.Value) interface{} {
 		default:
 			c.Files = append(c.Files, f)
 		}
-	}
-
-	values := chartutil.Values{}
-	if v, ok := files["values.yaml"]; ok {
-		vals, err := chartutil.ReadValues([]byte(v))
-		if err != nil {
-			return map[string]interface{}{"error": "invalid values.yaml: " + err.Error()}
-		}
-		values = vals
 	}
 
 	options := chartutil.ReleaseOptions{
