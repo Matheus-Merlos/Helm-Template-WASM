@@ -12,16 +12,24 @@ import (
 )
 
 func render(this js.Value, args []js.Value) interface{} {
-	if len(args) < 6 {
-		return map[string]interface{}{"error": "expected 6 arguments: filesJSON, chartName, chartVersion, values, releaseName, namespace"}
+	if len(args) < 4 {
+		return map[string]interface{}{"error": "expected at least 4 arguments: filesJSON, chartName, chartVersion, valuesStr"}
 	}
 
 	filesJSON := args[0].String()
 	chartName := args[1].String()
 	chartVersion := args[2].String()
 	valuesStr := args[3].String()
-	releaseName := args[4].String()
-	namespace := args[5].String()
+
+	releaseName := "release-name"
+	if len(args) > 4 && !args[4].IsUndefined() && !args[4].IsNull() && args[4].String() != "" {
+		releaseName = args[4].String()
+	}
+
+	namespace := "default"
+	if len(args) > 5 && !args[5].IsUndefined() && !args[5].IsNull() && args[5].String() != "" {
+		namespace = args[5].String()
+	}
 
 	var files map[string]string
 	if err := json.Unmarshal([]byte(filesJSON), &files); err != nil {
